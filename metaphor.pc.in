@@ -1,0 +1,10 @@
+prefix=@prefix@
+includedir=@includedir@
+libdir=@libdir@
+exec_prefix=@exec_prefix@
+
+Name: metaphor
+Description: The metaphor library
+Version: @PACKAGE_VERSION@
+Cflags: -I${includedir}/metaphor
+Libs: -L${libdir} -lmetaphor

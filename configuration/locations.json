@@ -1,0 +1,6 @@
+[
+     {"name": "mysql", "path": "/drv/home/nile/Dropbox/GitHub/explore/metaphor/libs/libmysql_metaphor.so"},
+     {"name": "mysql_profile", "path": "/drv/home/nile/Dropbox/GitHub/explore/metaphor/libs/libmysql_metaphor_profile.so"},
+     {"name": "fake", "path": "/drv/home/nile/Dropbox/GitHub/explore/metaphor/libs/libfake_metaphor.so"},
+     {"name": "fake_profile", "path": "/drv/home/nile/Dropbox/GitHub/explore/metaphor/libs/libfake_metaphor_profile.so"}
+]
