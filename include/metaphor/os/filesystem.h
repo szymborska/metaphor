@@ -17,7 +17,8 @@
 #include <metaphor/os/types.h>
 #include <metaphor/third-party/uthash.h>
 
-typedef char *(*READ_DATA) (int blocking, int bytes_to_read);
+typedef char * (*READ_FUNCTION) (int blocking, int bytes_to_read, int read_offset);
+typedef int (*SIZE_FUNCTION) (char * path);
 
 struct m_file {
 	char *name;
@@ -28,6 +29,8 @@ struct m_file {
 	int is_directory;
 	int permissions;
 	int is_root;
+	READ_FUNCTION read_function;
+        SIZE_FUNCTION size_function;
 	struct m_file *files;
 	UT_hash_handle hh;
 };
@@ -37,7 +40,8 @@ struct m_open_file {
 	struct m_file *file;
 	int position;
 	int blocking;
-	READ_DATA *read_data;
+        int read_offset;
+        int eof_reached;
 	UT_hash_handle hh;
 };
 
@@ -63,9 +67,13 @@ struct m_directory *get_open_directories(void);
 void set_open_directories(struct m_directory *new_open_directories);
 struct m_file *new_file_with_parameters(char *name, char *path, void *data,
 					int length, int permissions,
-					int is_directory, int is_root);
+					int is_directory, int is_root,
+                                        READ_FUNCTION read_function,
+                                        SIZE_FUNCTION size_function);
 struct m_file *new_file(struct m_file *filesystem, char *path);
-struct m_file *new_file_with_data(struct m_file *filesystem, char *path,
+struct m_file * new_file_with_dynamic_data(struct m_file *filesystem, char *path, 
+ 		 		 READ_FUNCTION read_function, SIZE_FUNCTION size_function);
+struct m_file *new_file_with_static_data(struct m_file *filesystem, char *path,
 				  void *data, int length);
 struct m_file *get_file(struct m_file *filesystem, char *path);
 struct m_file *new_filesystem(void);

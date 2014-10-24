@@ -80,6 +80,7 @@ m_open(const char *pathname, int flags)
 		} else {
 			opened_file->file = file;
 			opened_file->position = 0;
+                        opened_file->read_offset = 0;
 			unsigned int current_fd = get_current_fd();
 			current_fd = current_fd + 1;
 			return_fd = current_fd;
@@ -127,56 +128,76 @@ m_read(int fd, void *buf, size_t count)
 			read_bytes = syscall_read(fd, buf, count);
 		} else {
 			file = open_file->file;
-			if ((file->length - open_file->position) > count) {
-				debug_print("The data is: %s.\n",
+                        if (file->read_function != NULL) {
+				if (!open_file->eof_reached) { 
+ 
+					char * data = (*file->read_function)(0,count,open_file->read_offset);
+                                        int bytes_read = strlen(data);
+					memcpy(buf, data, bytes_read);
+	
+                	                open_file->read_offset += bytes_read;
+					open_file->position += bytes_read; 
+					read_bytes = bytes_read;
+					if (strlen(data) < count) {
+						open_file->eof_reached = 1; 
+                                        }
+                                } else {
+                                        read_bytes = 0;
+                                }
+
+                        } else {
+
+				if ((file->length - open_file->position) > count) {
+					debug_print("The data is: %s.\n",
 					    (char *) file->data);
-				debug_print("The position is: %d.\n",
+					debug_print("The position is: %d.\n",
 					    open_file->position);
-				char *offset =
-				    (char *) file->data + open_file->position;
-				debug_print("The offset data is: %s.\n",
+					char *offset =
+					    (char *) file->data + open_file->position;
+					debug_print("The offset data is: %s.\n",
 					    (char *) offset);
-				memcpy(buf, offset, count);
-				char *char_buffer = (char *) buf;
-				char_buffer[count] = '\0';
-				open_file->position += count;
-				debug_print("FULLY copied: %s.\n",
+					memcpy(buf, offset, count);
+					char *char_buffer = (char *) buf;
+					char_buffer[count] = '\0';
+					open_file->position += count;
+					debug_print("FULLY copied: %s.\n",
 					    (char *) buf);
-				read_bytes = count;
-			} else if (file->length == open_file->position) {
-				debug_print("%s. Returning NULL.\n", "EQUAL");
-				debug_print("File length: %d.\n", file->length);
-				debug_print("Position: %d.\n",
+					read_bytes = count;
+				} else if (file->length == open_file->position) {
+					debug_print("%s. Returning NULL.\n", "EQUAL");
+					debug_print("File length: %d.\n", file->length);
+					debug_print("Position: %d.\n",
 					    open_file->position);
 
-				read_bytes = 0;
-				// char * char_buffer = (char *) buf;
-				// char_buffer[0] = '\0';
+					read_bytes = 0;
+					// char * char_buffer = (char *) buf;
+					// char_buffer[0] = '\0';
 
-			} else {
-				// We don't handle blocking: if (open_file->blocking)
-				debug_print("%s. NOT equal.\n", "NOT EQUAL");
-				int remaining_bytes =
-				    file->length - open_file->position;
-				debug_print("File length: %d.\n", file->length);
-				debug_print("Position: %d.\n",
+				} else {
+					// We don't handle blocking: if (open_file->blocking)
+					debug_print("%s. NOT equal.\n", "NOT EQUAL");
+					int remaining_bytes =
+					    file->length - open_file->position;
+					debug_print("File length: %d.\n", file->length);
+					debug_print("Position: %d.\n",
 					    open_file->position);
-				char *offset =
-				    (char *) file->data + open_file->position;
+					char *offset =
+					    (char *) file->data + open_file->position;
 
-				debug_print
-				    ("We are trying to copy back data: %s.\n",
-				     (char *) file->data);
-				memcpy(buf, offset, remaining_bytes);
-				debug_print("Offset: %s.\n", offset);
-				debug_print("Size: %d.\n", remaining_bytes);
-				// buf[remaining_bytes] = '\0';
-				char *char_buffer = (char *) buf;
-				char_buffer[remaining_bytes] = '\0';
-				debug_print("What we actually copied: %s.\n",
+					debug_print
+					    ("We are trying to copy back data: %s.\n",
+					     (char *) file->data);
+					memcpy(buf, offset, remaining_bytes);
+					debug_print("Offset: %s.\n", offset);
+					debug_print("Size: %d.\n", remaining_bytes);
+					// buf[remaining_bytes] = '\0';
+					char *char_buffer = (char *) buf;
+					char_buffer[remaining_bytes] = '\0';
+					debug_print("What we actually copied: %s.\n",
 					    (char *) buf);
-				open_file->position += remaining_bytes;
-				read_bytes = remaining_bytes;
+					open_file->position += remaining_bytes;
+					read_bytes = remaining_bytes;
+				}
 			}
 		}
 	} else {
@@ -236,10 +257,14 @@ m_lseek(int fd, off_t offset, int whence)
 		} else {
 			if (whence == SEEK_SET) {
 				open_file->position = offset;
+				open_file->read_offset = offset;
 			} else if (whence == SEEK_CUR) {
 				open_file->position += offset;
+				open_file->read_offset += offset;
 			} else if (whence == SEEK_END) {
 				open_file->position =
+				    open_file->file->length + offset;
+				open_file->read_offset =
 				    open_file->file->length + offset;
 			}
 			return_code = open_file->position;

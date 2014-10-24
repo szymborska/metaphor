@@ -122,7 +122,7 @@ new_filesystem(void)
 
 	void *data = NULL;
 	struct m_file *root_file =
-	    new_file_with_parameters("/", "/", data, 0, 0, 1, 1);
+	    new_file_with_parameters("/", "/", data, 0, 0, 1, 1, NULL, NULL);
 
 	return root_file;
 }
@@ -177,7 +177,9 @@ delete_filesystem(struct m_file *in_file)
  */
 struct m_file *
 new_file_with_parameters(char *name, char *path, void *data, int length,
-			 int permissions, int is_directory, int is_root)
+			 int permissions, int is_directory, int is_root,
+                         READ_FUNCTION read_function,
+                         SIZE_FUNCTION size_functionlength)
 {
 
 	debug_print("Creating new file %s with name %s with data %s.\n", path,
@@ -193,6 +195,22 @@ new_file_with_parameters(char *name, char *path, void *data, int length,
 	file->is_root = is_root;
 	file->files = NULL;
 	file->inode = inode_number;
+        file->read_function = read_function;
+
+	return file;
+}
+
+struct m_file *
+new_file_with_dynamic_data(struct m_file *filesystem, char *path, READ_FUNCTION read_function, SIZE_FUNCTION size_function)
+{
+	char *leaf_name = get_leaf(path);
+	debug_print("NEW FILE with READ FUNCTION: The leaf name of %s is %s.\n", path, leaf_name);
+	struct m_file *file;
+	struct m_file *parent_directory =
+	    get_directory_of_file(filesystem, path, 1);
+        int length = (*size_function)(path);
+	file = new_file_with_parameters(leaf_name, path, NULL, length, 0, 0, 0, read_function, size_function);
+	HASH_ADD_STR(parent_directory->files, name, file);
 
 	return file;
 }
@@ -201,12 +219,12 @@ struct m_file *
 new_file(struct m_file *filesystem, char *path)
 {
 
-	struct m_file *file = new_file_with_data(filesystem, path, NULL, 0);
+	struct m_file *file = new_file_with_static_data(filesystem, path, NULL, 0);
 	return file;
 }
 
 struct m_file *
-new_file_with_data(struct m_file *filesystem, char *path, void *data,
+new_file_with_static_data(struct m_file *filesystem, char *path, void *data,
 		   int length)
 {
 
@@ -215,7 +233,7 @@ new_file_with_data(struct m_file *filesystem, char *path, void *data,
 	struct m_file *file;
 	struct m_file *parent_directory =
 	    get_directory_of_file(filesystem, path, 1);
-	file = new_file_with_parameters(leaf_name, path, data, length, 0, 0, 0);
+	file = new_file_with_parameters(leaf_name, path, data, length, 0, 0, 0, NULL, NULL);
 	HASH_ADD_STR(parent_directory->files, name, file);
 
 	return file;
@@ -270,6 +288,7 @@ get_directory_of_file(struct m_file *filesystem, char *path,
 
 		if (strlen(remaining_path) > 0) {
 			debug_print("Remaining path is %s.\n", remaining_path);
+	
 			HASH_FIND_STR(current_directory->files, subpath, file);
 
 			if (file) {
@@ -286,7 +305,8 @@ get_directory_of_file(struct m_file *filesystem, char *path,
 				file =
 				    new_file_with_parameters(subpath,
 							     full_directory_path,
-							     NULL, 0, 0, 1, 0);
+							     NULL, 0, 0, 1, 0,
+                                                             NULL, NULL);
 				free(full_directory_path);
 				HASH_ADD_STR(current_directory->files, name,
 					     file);

@@ -92,7 +92,7 @@ save_stat_file(char *stat_file_path, int pid, int time_in_seconds,
 
 	// Save to our root filesystem here
 	// struct m_file * stat_file = 
-	new_file_with_data(filesystem, stat_file_path, stat_string,
+	new_file_with_static_data(filesystem, stat_file_path, stat_string,
 			   strlen(stat_string));
 	free(pid_string);
 }
@@ -150,7 +150,7 @@ copy_templates(void)
 		debug_print("Copying %s to %s.\n", copy_from, copy_to);
 		char *file_data = read_nonbinary_file(copy_from);
 		debug_print("File data: %s.\n", file_data);
-		new_file_with_data(filesystem, copy_to, file_data,
+		new_file_with_static_data(filesystem, copy_to, file_data,
 				   strlen(file_data));
 		free(copy_to);
 		free(copy_from);

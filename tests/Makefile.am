@@ -13,7 +13,7 @@ LOCAL_LIB_DIRECTORY= @abs_top_builddir@/libs
 UNIX_PROGRAM_FLAGS=-DPS_EXISTS=$(PS_EXISTS) -DPS_PATH=\"$(PS_PATH)\" -DCAT_EXISTS=$(CAT_EXISTS) -DCAT_PATH=\"$(CAT_PATH)\" -DNE_EXISTS=$(NE_EXISTS)
 noinst_libdir= @abs_top_builddir@/libs
 
-noinst_bin_PROGRAMS = run_metaphor_filesystem_tests metaphor_filesystem_tests run_metaphor_processes_tests metaphor_processes_tests metaphor_unix_integration_tests hashutils_tests fileutils_tests stringutils_tests metaphor_memory_tests metaphor_memory_calls
+noinst_bin_PROGRAMS = metaphor_filesystem_tests metaphor_processes_tests metaphor_unix_integration_tests hashutils_tests fileutils_tests stringutils_tests metaphor_memory_tests metaphor_memory_calls 
 
 hashutils_tests_SOURCES= hashutils_tests.c 
 hashutils_tests_LDFLAGS = -lcmocka -L$(LOCAL_LIB_DIRECTORY) -lmetaphor -lbsd
@@ -35,19 +35,11 @@ metaphor_memory_calls_SOURCES= metaphor_memory_calls.c
 metaphor_memory_calls_LDFLAGS = -lcmocka -L$(LOCAL_LIB_DIRECTORY) -lmetaphor -lbsd
 metaphor_memory_calls_CFLAGS = $(LOCAL_INCLUDE_DIRECTORY)
 
-run_metaphor_filesystem_tests_SOURCES= run_metaphor_filesystem_tests.c
-run_metaphor_filesystem_tests_LDFLAGS = -lcmocka
-run_metaphor_filesystem_tests_CFLAGS = -DMETAPHOR_LIBRARY_LOCATION=\"$(METAPHOR_TESTING_LIBRARY_LOCATION)\" 
-
 metaphor_filesystem_tests_SOURCES= metaphor_filesystem_tests.c metaphor_filesystem_syscalls.c
 metaphor_filesystem_tests_LDFLAGS = -lcmocka -L$(LOCAL_LIB_DIRECTORY) -lmetaphor -lbsd
 metaphor_filesystem_tests_CFLAGS = $(LOCAL_INCLUDE_DIRECTORY)
  
-run_metaphor_processes_tests_SOURCES= run_metaphor_processes_tests.c
-run_metaphor_processes_tests_LDFLAGS = -lcmocka
-run_metaphor_processes_tests_CFLAGS = -DMETAPHOR_LIBRARY_LOCATION=\"$(METAPHOR_TESTING_LIBRARY_LOCATION)\" -DMETAPHOR_TEMPLATE_DIRECTORY=\"$(METAPHOR_TEMPLATE_DIRECTORY)\"
-
-metaphor_processes_tests_SOURCES= metaphor_processes_tests.c
+metaphor_processes_tests_SOURCES= metaphor_processes_tests.c metaphor_processes_syscalls.c 
 metaphor_processes_tests_LDFLAGS = -lcmocka -L$(LOCAL_LIB_DIRECTORY) -lmetaphor -lbsd
 metaphor_processes_tests_CFLAGS = $(LOCAL_INCLUDE_DIRECTORY) -DMETAPHOR_TEMPLATE_DIRECTORY=\"$(METAPHOR_TEMPLATE_DIRECTORY)\"
 
@@ -70,12 +62,15 @@ libmetaphorplatformtesting_la_SOURCES = metaphor_platform_testing.c
 libmetaphorplatformtesting_la_LDFLAGS = -module -ldl -version-info $(METAPHOR_LIBRARY_VERSION) -D_GNU_SOURCE -lpthread -lbsd -no-undefined
 
 # Copy libraries to the main directory
-run_tests: run_metaphor_filesystem_tests metaphor_filesystem_tests run_metaphor_processes_tests metaphor_processes_tests metaphor_unix_integration_tests hashutils_tests fileutils_tests stringutils_tests metaphor_memory_tests metaphor_memory_calls libmetaphortesting.la libmetaphorplatformtesting.la 
+run_tests: metaphor_filesystem_tests metaphor_processes_tests metaphor_unix_integration_tests hashutils_tests fileutils_tests stringutils_tests metaphor_memory_tests metaphor_memory_calls libmetaphortesting.la libmetaphorplatformtesting.la 
 	cp .libs/*.so . 
 	./hashutils_tests 
 	./stringutils_tests  
 	./fileutils_tests 
-	./run_metaphor_filesystem_tests
-	./run_metaphor_processes_tests 
+	./metaphor_filesystem_tests
+	./metaphor_processes_tests 
 	./metaphor_unix_integration_tests
 
+all-local:
+	cp .libs/*.so . 
+	

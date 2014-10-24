@@ -18,12 +18,49 @@
 #include <sys/stat.h>
 #include <stdio.h>
 #include <dirent.h>
+#include <sys/types.h>
+// #include <fcntl.h>
 
 #include <metaphor/os/filesystem.h>
 #include <metaphor/os/processes.h>
 #include <metaphor/os/os.h>
 #include <metaphor/intercept/intercept_calls.h>
 
+char * read_text_data(int blocking, int bytes_to_read, int read_offset);
+char * read_text_data(int blocking, int bytes_to_read, int read_offset) {
+
+   	FILE *file = fopen("./data/text.txt", "rb");
+
+	fseek(file, 0, SEEK_END);
+	long file_size = ftell(file);
+	fseek(file, 0, SEEK_SET);
+
+        if (read_offset + bytes_to_read > file_size) {
+            bytes_to_read = file_size - read_offset;
+        }
+	fseek(file, read_offset, SEEK_SET);
+	char *data = malloc(bytes_to_read + 1);
+	int bytes_read = fread(data, 1, bytes_to_read, file);
+ 	if (bytes_read < bytes_to_read) {
+		printf("Failed to read file. Only read %d bytes.\n", bytes_read);
+		exit(1);
+ 	}
+	fclose(file);
+	data[bytes_read] = '\0';
+
+	return data;
+}
+
+int size_text_data(char * throwaway_path);
+int size_text_data(char * throwaway_path) {
+
+   	FILE *file = fopen("./data/text.txt", "rb");
+	fseek(file, 0, SEEK_END);
+	long file_size = ftell(file);
+
+        return file_size;
+}
+	
 int initialize_metaphors(void);
 int
 initialize_metaphors(void)
@@ -37,8 +74,10 @@ initialize_metaphors(void)
 	strlcpy(sample_data, data, strlen(data) + 1);
 	sample_data[strlen(data)] = '\0';
 
-	new_file_with_data(filesystem, "/data/data.txt", sample_data,
+	new_file_with_static_data(filesystem, "/data/data.txt", sample_data,
 			   strlen(sample_data));
+	new_file_with_dynamic_data(filesystem, "/data/table.csv", &read_text_data, &size_text_data);
+
 	char *whitelist_filepaths[] = { "/data/", "/proc", NULL };
 	set_whitelist(whitelist_filepaths, 2);
 

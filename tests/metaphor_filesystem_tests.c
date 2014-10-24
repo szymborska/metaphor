@@ -44,7 +44,7 @@ test_new_file_with_parameters(void **state)
 	char *name = "sample.txt";
 	char *data = "data";
 	struct m_file *file =
-	    new_file_with_parameters(name, name, data, strlen(data), 0, 1, 0);
+	    new_file_with_parameters(name, name, data, strlen(data), 0, 1, 0, NULL, NULL);
 
 	assert_int_equal(0, file->permissions);
 	assert_int_equal(1, file->is_directory);
@@ -150,13 +150,13 @@ test_nested_files_with_data(void **state)
 	strlcpy(passwd_data, data3, sizeof (passwd_data));
 
 	struct m_file *stat1_file =
-	    new_file_with_data(filesystem, "/proc/1/stat", stat_data1,
+	    new_file_with_static_data(filesystem, "/proc/1/stat", stat_data1,
 			       strlen(stat_data1));
 	struct m_file *stat2_file =
-	    new_file_with_data(filesystem, "/proc/2/stat", stat_data2,
+	    new_file_with_static_data(filesystem, "/proc/2/stat", stat_data2,
 			       strlen(stat_data2));
 	struct m_file *passwd_file =
-	    new_file_with_data(filesystem, "/etc/passwd", passwd_data,
+	    new_file_with_static_data(filesystem, "/etc/passwd", passwd_data,
 			       strlen(passwd_data));
 
 	struct m_file *returned_file = get_file(filesystem, "/proc/1/stat");
@@ -191,7 +191,7 @@ test_open_file(void **state)
 	strlcpy(stat_data1, data1, sizeof (stat_data1));
 
 	struct m_file *stat1_file =
-	    new_file_with_data(filesystem, "/proc/1/stat", stat_data1,
+	    new_file_with_static_data(filesystem, "/proc/1/stat", stat_data1,
 			       strlen(stat_data1));
 	char *whitelist_filepaths[] = { "/proc", NULL };
 	set_whitelist(whitelist_filepaths, 1);
@@ -216,7 +216,7 @@ test_read_file_exactly(void **state)
 	strlcpy(stat_data1, data1, sizeof (stat_data1));
 
 	struct m_file *stat1_file =
-	    new_file_with_data(filesystem, "/proc/1/stat", stat_data1,
+	    new_file_with_static_data(filesystem, "/proc/1/stat", stat_data1,
 			       strlen(stat_data1));
 	char *whitelist_filepaths[] = { "/proc", NULL };
 	set_whitelist(whitelist_filepaths, 1);
@@ -244,7 +244,7 @@ test_read_beyond_file(void **state)
 	strlcpy(stat_data1, data1, sizeof (stat_data1));
 
 	struct m_file *stat1_file =
-	    new_file_with_data(filesystem, "/proc/1/stat", stat_data1,
+	    new_file_with_static_data(filesystem, "/proc/1/stat", stat_data1,
 			       strlen(stat_data1));
 	char *whitelist_filepaths[] = { "/proc", NULL };
 	set_whitelist(whitelist_filepaths, 1);
@@ -255,6 +255,68 @@ test_read_beyond_file(void **state)
 	buffer[bytes_read] = '\0';
 	close(fd);
 	assert_int_equal(fd, 100001);
+	delete_filesystem(filesystem);
+}
+
+char * read_text_data(int blocking, int bytes_to_read, int read_offset) {
+
+   	FILE *file = fopen("./data/text.txt", "rb");
+
+	fseek(file, 0, SEEK_END);
+	long file_size = ftell(file);
+	fseek(file, 0, SEEK_SET);
+
+        if (read_offset + bytes_to_read > file_size) {
+            bytes_to_read = file_size - read_offset;
+        }
+	fseek(file, read_offset, SEEK_SET);
+	char *data = malloc(bytes_to_read + 1);
+	int bytes_read = fread(data, 1, bytes_to_read, file);
+ 	if (bytes_read < bytes_to_read) {
+		printf("Failed to read file. Only read %d bytes.\n", bytes_read);
+		exit(1);
+ 	}
+	fclose(file);
+	data[bytes_read] = '\0';
+
+	return data;
+}
+
+int size_text_data(char * throwaway_path) {
+
+   	FILE *file = fopen("./data/text.txt", "rb");
+	fseek(file, 0, SEEK_END);
+	long file_size = ftell(file);
+
+        return file_size;
+}
+	
+static void
+test_new_file_with_dynamic_data(void **state)
+{
+
+	initialize_filesystem();
+	struct m_file *filesystem = get_root_filesystem();
+	
+	char *whitelist_filepaths[] = { "/data", NULL };
+	set_whitelist(whitelist_filepaths, 1);
+
+	struct m_file *file = new_file_with_dynamic_data(filesystem, "/data/table.csv", &read_text_data, &size_text_data);
+        
+	int fd = m_open("/data/table.csv", O_RDONLY);
+
+	char buffer1[8];
+	int bytes_read = m_read(fd, buffer1, 8);
+	buffer1[bytes_read] = '\0';
+	assert_string_equal(buffer1, "The Saw-");
+
+	char buffer2[8];
+	bytes_read = m_read(fd, buffer2, 8);
+	buffer2[bytes_read] = '\0';
+	assert_string_equal(buffer2, "Horse at");
+
+	m_close(fd);
+
 	delete_filesystem(filesystem);
 }
 
@@ -272,7 +334,7 @@ test_stat_file(void **state)
 	strlcpy(stat_data1, data1, sizeof (stat_data1));
 
 	struct m_file *stat1_file =
-	    new_file_with_data(filesystem, "/proc/1/stat", stat_data1,
+	    new_file_with_static_data(filesystem, "/proc/1/stat", stat_data1,
 			       strlen(stat_data1));
 	char *whitelist_filepaths[] = { "/proc", NULL };
 	set_whitelist(whitelist_filepaths, 1);
@@ -305,7 +367,7 @@ test_openat(void **state)
 	strlcpy(stat_data1, data1, sizeof (stat_data1));
 
 	struct m_file *stat1_file =
-	    new_file_with_data(filesystem, "/proc/1/stat", stat_data1,
+	    new_file_with_static_data(filesystem, "/proc/1/stat", stat_data1,
 			       strlen(stat_data1));
 	char *whitelist_filepaths[] = { "/proc", NULL };
 	set_whitelist(whitelist_filepaths, 1);
@@ -348,13 +410,13 @@ test_reading_a_directory(void **state)
 	strlcpy(proc_data3, data3, sizeof (proc_data3));
 
 	struct m_file *proc1_file =
-	    new_file_with_data(filesystem, "/proc/1/stat", proc_data1,
+	    new_file_with_static_data(filesystem, "/proc/1/stat", proc_data1,
 			       strlen(proc_data1));
 	struct m_file *proc2_file =
-	    new_file_with_data(filesystem, "/proc/1/status", proc_data2,
+	    new_file_with_static_data(filesystem, "/proc/1/status", proc_data2,
 			       strlen(proc_data2));
 	struct m_file *proc3_file =
-	    new_file_with_data(filesystem, "/proc/1/io", proc_data3,
+	    new_file_with_static_data(filesystem, "/proc/1/io", proc_data3,
 			       strlen(proc_data3));
 
 	int succeeded = 0;
@@ -407,6 +469,7 @@ main(void)
 		unit_test(test_read_file_exactly),
 		unit_test(test_read_beyond_file),
 		unit_test(test_reading_a_directory),
+		unit_test(test_new_file_with_dynamic_data),
 		unit_test(test_stat_file),
 		unit_test(test_openat),
 	};

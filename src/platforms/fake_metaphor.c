@@ -41,7 +41,7 @@ initialize_metaphors(void)
 	const char *data = "sample data\n";
 	char *sample_data = safe_string_copy(256, (char *) data);
 
-	new_file_with_data(filesystem, "/data/data.txt", sample_data,
+	new_file_with_static_data(filesystem, "/data/data.txt", sample_data,
 			   strlen(sample_data));
 	char *whitelist_filepaths[] = { "/data/", "/proc", NULL };
 	set_whitelist(whitelist_filepaths, 2);

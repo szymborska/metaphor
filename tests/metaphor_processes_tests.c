@@ -25,6 +25,12 @@
 #include <metaphor/os/filesystem.h>
 #include <metaphor/os/processes.h>
 #include <metaphor/utils/fileutils.h>
+#include "metaphor_processes_tests.h"
+
+int
+initialize_metaphors(void)
+{
+}
 
 static void
 test_initialize_proc(void **state)
