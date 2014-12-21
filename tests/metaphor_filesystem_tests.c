@@ -44,7 +44,7 @@ test_new_file_with_parameters(void **state)
 	char *name = "sample.txt";
 	char *data = "data";
 	struct m_file *file =
-	    new_file_with_parameters(name, name, data, strlen(data), 0, 1, 0, NULL, NULL);
+	    new_file_with_parameters(name, name, (uintptr_t) NULL, data, strlen(data), 0, 1, 0, NULL, NULL, NULL);
 
 	assert_int_equal(0, file->permissions);
 	assert_int_equal(1, file->is_directory);
@@ -258,35 +258,35 @@ test_read_beyond_file(void **state)
 	delete_filesystem(filesystem);
 }
 
-char * read_text_data(int blocking, int bytes_to_read, int read_offset) {
+char * read_text_data(struct m_file * file, int blocking, int bytes_to_read, int read_offset) {
 
-   	FILE *file = fopen("./data/text.txt", "rb");
+   	FILE *text_file = fopen("./data/text.txt", "rb");
 
-	fseek(file, 0, SEEK_END);
-	long file_size = ftell(file);
-	fseek(file, 0, SEEK_SET);
+	fseek(text_file, 0, SEEK_END);
+	long file_size = ftell(text_file);
+	fseek(text_file, 0, SEEK_SET);
 
         if (read_offset + bytes_to_read > file_size) {
             bytes_to_read = file_size - read_offset;
         }
-	fseek(file, read_offset, SEEK_SET);
+	fseek(text_file, read_offset, SEEK_SET);
 	char *data = malloc(bytes_to_read + 1);
-	int bytes_read = fread(data, 1, bytes_to_read, file);
+	int bytes_read = fread(data, 1, bytes_to_read, text_file);
  	if (bytes_read < bytes_to_read) {
 		printf("Failed to read file. Only read %d bytes.\n", bytes_read);
 		exit(1);
  	}
-	fclose(file);
+	fclose(text_file);
 	data[bytes_read] = '\0';
 
 	return data;
 }
 
-int size_text_data(char * throwaway_path) {
+int size_text_data(struct m_file * file) {
 
-   	FILE *file = fopen("./data/text.txt", "rb");
-	fseek(file, 0, SEEK_END);
-	long file_size = ftell(file);
+   	FILE *file_ptr = fopen("./data/text.txt", "rb");
+	fseek(file_ptr, 0, SEEK_END);
+	long file_size = ftell(file_ptr);
 
         return file_size;
 }
@@ -301,7 +301,7 @@ test_new_file_with_dynamic_data(void **state)
 	char *whitelist_filepaths[] = { "/data", NULL };
 	set_whitelist(whitelist_filepaths, 1);
 
-	struct m_file *file = new_file_with_dynamic_data(filesystem, "/data/table.csv", &read_text_data, &size_text_data);
+	struct m_file *file = new_file_with_dynamic_data(filesystem, "/data/table.csv", (uintptr_t) NULL, &read_text_data, &size_text_data, NULL);
         
 	int fd = m_open("/data/table.csv", O_RDONLY);
 
@@ -316,6 +316,11 @@ test_new_file_with_dynamic_data(void **state)
 	assert_string_equal(buffer2, "Horse at");
 
 	m_close(fd);
+
+        // Stat the file and get the length
+        struct stat buf;
+        m_xstat(0, "/data/table.csv", &buf);
+        assert_int_equal((int) buf.st_size, 463);
 
 	delete_filesystem(filesystem);
 }

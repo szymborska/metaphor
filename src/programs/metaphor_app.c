@@ -178,6 +178,7 @@ run_program(const char *metaphor_library_path, const char *program_name,
 	char *program_command =
 	    safe_join_strings(8096, 6, "LD_PRELOAD=", metaphor_library_path,
 			      " ", program_name, " ", command_arguments);
+        printf("Program command: %s.\n", program_command);
 	int return_code = system(program_command);
 	free(program_command);
 

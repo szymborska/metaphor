@@ -40,6 +40,10 @@
 #pragma GCC diagnostic push	// require GCC 4.6
 #pragma GCC diagnostic ignored "-Wcast-qual"
 
+MYSQL *reusable_connection = NULL;
+char * cached_username = NULL;
+char * cached_password = NULL;
+
 void finish_with_error(MYSQL * connection);
 void
 finish_with_error(MYSQL * connection)
@@ -61,27 +65,51 @@ open_mysql_connection(void)
 		exit(1);
 	}
 
- 	int * username_length = malloc(sizeof(int));
+     	int * username_length = malloc(sizeof(int));
  	int * password_length = malloc(sizeof(int));
- 	*username_length = 1000;
- 	*password_length = 1000;
- 	char * username = malloc(sizeof(char) * (*username_length));
- 	char * password = malloc(sizeof(char) * (*password_length));
-
- 	get_username_and_password(&username, username_length, &password, password_length); 
+ 	*username_length = 1024;
+ 	*password_length = 1024;
+ 
+        if (cached_username == NULL || cached_password == NULL) {
+    	    char * username = malloc(sizeof(char) * (*username_length));
+ 	    char * password = malloc(sizeof(char) * (*password_length));
+     	    get_username_and_password(&username, username_length, &password, password_length); 
+            cached_username = safe_string_copy(1024, username);
+            cached_password = safe_string_copy(1024, password);
+  	    free(username);
+	    free(password);
+        }
 
 	if (mysql_real_connect
-	    (connection, "localhost", username, password, "mysql", 0, NULL,
+	    (connection, "localhost", cached_username, cached_password, "mysql", 0, NULL,
 	     0) == NULL) {
 		finish_with_error(connection);
 	}
 
 	free(username_length);
-	free(username);
 	free(password_length);
-	free(password);
 
 	return connection;
+}
+
+MYSQL *
+get_mysql_connection(void);
+MYSQL *
+get_mysql_connection(void)
+{
+        if (!reusable_connection) { // Obviously, not thread safe
+               reusable_connection = open_mysql_connection();
+        } 
+        return reusable_connection;
+}
+
+void 
+close_mysql_connection(MYSQL * connection);
+void 
+close_mysql_connection(MYSQL * connection) {
+
+	mysql_close(connection);
+        reusable_connection = NULL;
 }
 
 int make_query_without_result(MYSQL * connection, const char *query);
@@ -144,7 +172,7 @@ create_query_processes(void)
 	MYSQL *connection;
 	MYSQL_RES *result;
 
-	connection = open_mysql_connection();
+	connection = get_mysql_connection();
 	const char *query = "show processlist";
 	result = make_query(connection, query);
 
@@ -173,31 +201,157 @@ create_query_processes(void)
 	}
 
 	mysql_free_result(result);
-	mysql_close(connection);
 }
 
-/*
-void create_database_directories(void) {
+char * read_table_data(struct m_file * table_file, int blocking, int bytes_to_read, int read_offset);
+char * read_table_data(struct m_file * table_file, int blocking, int bytes_to_read, int read_offset) {
+
+    printf("Inside read table data.\n");
+    /* Get metadata */
+    char * database_name = safe_string_copy(1024, (char *) table_file->metadata);
+    char * table_name = safe_string_copy(1024, (char *) table_file->name);
+    char * tmp_file_path = safe_join_strings(8095, 5, "/tmp/", database_name, ".", table_name, ".txt");
+
+    printf("Trying to read file.\n");
+
+    /* Dump the table */
+    if( access( tmp_file_path, F_OK ) == -1 ) {
+        MYSQL * connection = get_mysql_connection(); 
+
+        char * dump_table_command = safe_join_strings(8096, 9, "SELECT * FROM ", database_name, ".", table_name, "INTO OUTFILE \"/tmp/", database_name, ".", table_name , ".txt\" FIELDS TERMINATED BY ',' ENCLOSED BY '\"' LINES TERMINATED BY '\\n\'");
+        printf("Dump table command: %s.\n", dump_table_command);
+        make_query(connection, dump_table_command);
+        free(dump_table_command);
+    }
+
+    /* Read the tmp file */
+    FILE *file = fopen(tmp_file_path, "rb");
+
+    fseek(file, 0, SEEK_END);
+    long file_size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    if (read_offset + bytes_to_read > file_size) {
+        bytes_to_read = file_size - read_offset;
+    }
+    fseek(file, read_offset, SEEK_SET);
+    char *data = malloc(bytes_to_read + 1);
+    int bytes_read = fread(data, 1, bytes_to_read, file);
+    if (bytes_read < bytes_to_read) {
+            printf("Failed to read file. Only read %d bytes.\n", bytes_read);
+            exit(1);
+    }
+    fclose(file);
+    data[bytes_read] = '\0';
+
+    return data;
+
+#if 0
+    /* Get the table size */
+    int table_size = get_table_size(m_file);
+    table_file->length = table_size;
+
+    /* Get table data */
+    char * database_name = safe_string_copy(1024, (char *) table_file->metadata);
+    char * table_name = safe_string_copy(1024, (char *) table_file->name);
+
+    /* Estimate the row count needed */
+    int row_count = 0;
+    MYSQL_ROW row;
+    unsigned int table_size = 0;
+    while ((row = mysql_fetch_row(result))) { 
+        row_count = safe_convert_string_to_int(strdup(row[0]));
+    }
+    int minimum_row_size = (int) ((float) table_size/ (float) row_count);
+    int rows_to_read = bytes_to_read / minimum_row_size;
+
+    /* Get the column names */
+    const char * columns_query = safe_join_strings(1024, 5, "SELECT GROUP_CONCAT(COLUMN_NAME) FROM information_schema.COLUMNS WHERE table_schema = \"", database_name, "\" AND table_name = \"", table_name, "\"");
+    result = make_query(connection, columns_query);
+    MYSQL_ROW row;
+    unsigned int table_size = 0;
+    char * column_names;
+    while ((row = mysql_fetch_row(result))) { 
+        column_names = safe_string_copy(row[0]));
+    }
+
+    /* Get table data */
+    char * database_name = safe_string_copy(1024, (char *) table_file->metadata);
+    char * table_name = safe_string_copy(1024, (char *) table_file->name);
+    const char * query = safe_join_strings(1024, 5, "SELECT CONCAT_WS(',',", column_names, ") FROM ", database_name, ".", table_name);
+    result = make_query(connection, query);
+#endif
+    
+}
+
+int get_table_size(struct m_file * table_file);
+int get_table_size(struct m_file * table_file) {
+
+    MYSQL * connection = get_mysql_connection(); 
+    MYSQL_RES *result; 
+
+    char * database_name = safe_string_copy(1024, (char *) table_file->metadata);
+    char * table_name = safe_string_copy(1024, (char *) table_file->name);
+    const char * query = safe_join_strings(1024, 5, "SELECT data_length + index_length  FROM information_schema.TABLES  WHERE table_schema = \"", database_name, "\" AND table_name = \"", table_name, "\"");
+    result = make_query(connection, query);
+
+    MYSQL_ROW row;
+    unsigned int table_size = 0;
+    while ((row = mysql_fetch_row(result))) { 
+        table_size = safe_convert_string_to_int(strdup(row[0]));
+    }
+
+    mysql_free_result(result);
+
+    return table_size;
+}
+
+void create_table_files_for_database(MYSQL * connection, char * database_name);
+void create_table_files_for_database(MYSQL * connection, char * database_name) {
+
+    MYSQL_RES *result; 
+
+    const char * query = safe_join_strings(1024, 2, "show tables from ", database_name);
+    result = make_query(connection, query);
+
+    MYSQL_ROW row;
+    struct m_file * filesystem = get_root_filesystem();
+    while ((row = mysql_fetch_row(result))) { 
+        
+        /* Basic table information */
+        char * table = strdup(row[0]);
+        char * file_name = safe_join_strings(8096, 4, "/data/csv/", database_name, "/", table);
+        char * copy_of_database_name = safe_string_copy(8096, database_name);
+
+        /* Create a dynamic table file */ 
+        new_file_with_dynamic_data(filesystem, file_name, (uintptr_t) copy_of_database_name, &read_table_data, &get_table_size, NULL);
+        
+        free(file_name);
+        free(table);
+    }
+
+    mysql_free_result(result);
+}
+
+void create_table_files(void);
+void create_table_files(void) {
 
     MYSQL *connection;
     MYSQL_RES *result; 
 
-    connection = open_mysql_connection();
+    connection = get_mysql_connection();
     const char * query = "show databases";
     result = make_query(connection, query);
 
-    int num_fields = mysql_num_fields(result);
     MYSQL_ROW row;
     while ((row = mysql_fetch_row(result))) { 
         char * database = strdup(row[0]);
-        create_partial_database_tables(database);
+        create_table_files_for_database(connection, database);
         free(database);
     }
                     
     mysql_free_result(result);
-    mysql_close(connection);
 }
-*/
 
 int kill(pid_t pid, int sig);
 int
@@ -231,7 +385,7 @@ initialize_metaphors(void)
 
 	new_file_with_static_data(filesystem, "/data/data.txt", sample_data,
 			   strlen(sample_data));
-	char *whitelist_filepaths[] = { "/data/", "/proc", NULL };
+	char *whitelist_filepaths[] = { "/data", "/proc", NULL };
 	set_whitelist(whitelist_filepaths, 2);
 
 	// Initialize the proc table
@@ -239,6 +393,13 @@ initialize_metaphors(void)
 
 	// Give it a try
 	create_query_processes();
+
+        // Create the table files
+        create_table_files();
+ 
+        // Close the MySQL connection
+        MYSQL * connection = get_mysql_connection();
+        close_mysql_connection(connection);
 
 	return 0;
 }

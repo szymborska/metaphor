@@ -131,7 +131,7 @@ m_read(int fd, void *buf, size_t count)
                         if (file->read_function != NULL) {
 				if (!open_file->eof_reached) { 
  
-					char * data = (*file->read_function)(0,count,open_file->read_offset);
+					char * data = (*file->read_function)(file,0,count,open_file->read_offset);
                                         int bytes_read = strlen(data);
 					memcpy(buf, data, bytes_read);
 	
@@ -461,7 +461,12 @@ m_xstat(int format, const char *path, struct stat *buf)
 			buf->st_nlink = 1;	// made up
 			buf->st_uid = 0;	// made up
 			buf->st_gid = 0;	// made up
-			buf->st_size = (long long) file->length;
+                        if (file->size_function != NULL) {
+                             buf->st_size = (off_t) (*(file->size_function))(file);
+                        } else {
+   			     buf->st_size = (long long) file->length;
+                        }
+
 			buf->st_blksize = (long) 4096;	// made up
 			buf->st_blocks = (long long) 24;	// made up
 		} else {

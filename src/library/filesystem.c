@@ -122,7 +122,7 @@ new_filesystem(void)
 
 	void *data = NULL;
 	struct m_file *root_file =
-	    new_file_with_parameters("/", "/", data, 0, 0, 1, 1, NULL, NULL);
+	    new_file_with_parameters("/", "/",  (uintptr_t) NULL, data, 0, 0, 1, 1, NULL, NULL, NULL);
 
 	return root_file;
 }
@@ -175,11 +175,12 @@ delete_filesystem(struct m_file *in_file)
  * *not* copy the data to avoid copying a potentially large
  * set of data.
  */
-struct m_file *
-new_file_with_parameters(char *name, char *path, void *data, int length,
-			 int permissions, int is_directory, int is_root,
-                         READ_FUNCTION read_function,
-                         SIZE_FUNCTION size_functionlength)
+struct m_file *new_file_with_parameters(char *name, char *path, uintptr_t metadata, void *data,
+					int length, int permissions,
+					int is_directory, int is_root,
+                                        READ_FUNCTION read_function,
+                                        SIZE_FUNCTION size_function,
+                                        CLEANUP_FUNCTION cleanup_function)
 {
 
 	debug_print("Creating new file %s with name %s with data %s.\n", path,
@@ -190,26 +191,29 @@ new_file_with_parameters(char *name, char *path, void *data, int length,
 	file->path = safe_string_copy(8096, path);
 	file->data = data;
 	file->length = length;
+        file->metadata = metadata;
 	file->permissions = permissions;
 	file->is_directory = is_directory;
 	file->is_root = is_root;
 	file->files = NULL;
 	file->inode = inode_number;
         file->read_function = read_function;
+        file->size_function = size_function;
+        file->cleanup_function = cleanup_function;
 
 	return file;
 }
 
-struct m_file *
-new_file_with_dynamic_data(struct m_file *filesystem, char *path, READ_FUNCTION read_function, SIZE_FUNCTION size_function)
+struct m_file * new_file_with_dynamic_data(struct m_file *filesystem, char *path, uintptr_t metadata, 
+ 		 		 READ_FUNCTION read_function, SIZE_FUNCTION size_function, 
+                                 CLEANUP_FUNCTION cleanup_function)
 {
 	char *leaf_name = get_leaf(path);
 	debug_print("NEW FILE with READ FUNCTION: The leaf name of %s is %s.\n", path, leaf_name);
 	struct m_file *file;
 	struct m_file *parent_directory =
 	    get_directory_of_file(filesystem, path, 1);
-        int length = (*size_function)(path);
-	file = new_file_with_parameters(leaf_name, path, NULL, length, 0, 0, 0, read_function, size_function);
+	file = new_file_with_parameters(leaf_name, path, metadata, NULL, 0, 0, 0, 0, read_function, size_function, cleanup_function);
 	HASH_ADD_STR(parent_directory->files, name, file);
 
 	return file;
@@ -233,7 +237,7 @@ new_file_with_static_data(struct m_file *filesystem, char *path, void *data,
 	struct m_file *file;
 	struct m_file *parent_directory =
 	    get_directory_of_file(filesystem, path, 1);
-	file = new_file_with_parameters(leaf_name, path, data, length, 0, 0, 0, NULL, NULL);
+	file = new_file_with_parameters(leaf_name, path, (uintptr_t) NULL, data, length, 0, 0, 0, NULL, NULL, NULL);
 	HASH_ADD_STR(parent_directory->files, name, file);
 
 	return file;
@@ -305,8 +309,8 @@ get_directory_of_file(struct m_file *filesystem, char *path,
 				file =
 				    new_file_with_parameters(subpath,
 							     full_directory_path,
-							     NULL, 0, 0, 1, 0,
-                                                             NULL, NULL);
+							     (uintptr_t) NULL, NULL, 0, 0, 1, 0,
+                                                             NULL, NULL, NULL);
 				free(full_directory_path);
 				HASH_ADD_STR(current_directory->files, name,
 					     file);

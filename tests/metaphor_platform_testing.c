@@ -76,7 +76,7 @@ initialize_metaphors(void)
 
 	new_file_with_static_data(filesystem, "/data/data.txt", sample_data,
 			   strlen(sample_data));
-	new_file_with_dynamic_data(filesystem, "/data/table.csv", &read_text_data, &size_text_data);
+	new_file_with_dynamic_data(filesystem, "/data/table.csv", (uintptr_t) NULL, &read_text_data, &size_text_data, NULL);
 
 	char *whitelist_filepaths[] = { "/data/", "/proc", NULL };
 	set_whitelist(whitelist_filepaths, 2);

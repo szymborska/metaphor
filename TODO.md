@@ -7,5 +7,5 @@
     * Add MySQL support)
 * Integrity check (minimal)
 * Integrated integration tests (third party)
-
+* Potential leak in mysql (close connection, free cached username and password)
 
